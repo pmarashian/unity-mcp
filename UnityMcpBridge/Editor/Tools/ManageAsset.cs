@@ -865,6 +865,17 @@ namespace UnityMcpBridge.Editor.Tools
                 }
             }
             // Example: Set color property
+            // ---
+            // Robust color assignment: support both the nested object format (for flexibility and future-proofing)
+            // and the direct array format (for user-friendliness and compatibility with simple automation tools).
+            //
+            // Supported formats:
+            // 1. Object format (allows specifying property name):
+            //    "color": { "name": "_Color", "value": [r, g, b, a] }
+            // 2. Array format (applies to _Color):
+            //    "color": [r, g, b, a]
+            //
+            // This ensures backward compatibility and makes the API easier to use for a variety of clients.
             if (properties["color"] is JObject colorProps)
             {
                 string propName = colorProps["name"]?.ToString() ?? "_Color"; // Default main color
@@ -890,6 +901,30 @@ namespace UnityMcpBridge.Editor.Tools
                             $"Error parsing color property '{propName}': {ex.Message}"
                         );
                     }
+                }
+            }
+            // --- Support direct array format for color for user-friendliness and compatibility ---
+            else if (properties["color"] is JArray colArr && colArr.Count >= 3)
+            {
+                // If the user provides just an array, assume it is for the main color property (_Color)
+                // This is the most common use case and matches Unity's default shader property for color.
+                try
+                {
+                    Color newColor = new Color(
+                        colArr[0].ToObject<float>(),
+                        colArr[1].ToObject<float>(),
+                        colArr[2].ToObject<float>(),
+                        colArr.Count > 3 ? colArr[3].ToObject<float>() : 1.0f
+                    );
+                    if (mat.HasProperty("_Color") && mat.GetColor("_Color") != newColor)
+                    {
+                        mat.SetColor("_Color", newColor);
+                        modified = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"Error parsing color property '_Color': {ex.Message}");
                 }
             }
             // Example: Set float property
